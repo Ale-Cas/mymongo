@@ -1,0 +1,1 @@
+"""mymongo test suite."""
