@@ -33,6 +33,7 @@ def test_create_value_error(created_document: Document) -> None:
 
 def test_read(created_document: Document) -> None:
     """Test the read method of the Document class."""
+    assert created_document.id
     result = created_document.read(created_document.id)
     assert isinstance(result, Document)
     assert result.id == created_document.id
@@ -58,6 +59,7 @@ def test_update(subdocument: TestSubDocument) -> None:
 
 def test_delete(created_document: Document) -> None:
     """Test the delete method of the Document class."""
+    assert created_document.id
     result = created_document.delete(created_document.id)
     assert isinstance(result, DeleteResult)
     assert result.deleted_count == 1
