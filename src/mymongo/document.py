@@ -1,7 +1,8 @@
 """Document model."""
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from functools import lru_cache
+from typing import Any, ClassVar, cast
 
 import bson
 from mongomock.collection import Collection as MockCollection
@@ -17,7 +18,7 @@ DocumentType = Mapping[str, Any]
 
 
 ID = "_id"
-COLLECTION = "collection"
+_Collection = Collection[DocumentType] | MockCollection
 
 
 class DocumentNotFoundError(Exception):
@@ -29,7 +30,8 @@ class Document(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    collection: Collection[DocumentType] | MockCollection = Field(
+    collection: ClassVar[_Collection | None] = Field(
+        default=None,
         description="The MongoDB collection the document is in.",
     )
 
@@ -58,6 +60,30 @@ class Document(BaseModel):
         """Dump to a general typed dict for pymongo and override."""
         return self.model_dump(by_alias=True, exclude=exclude, exclude_none=True)
 
+    @classmethod
+    def set_collection(
+        cls,
+        collection: _Collection,
+    ) -> None:
+        """Set the collection for the document class."""
+        cls.collection = collection
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def get_collection(cls) -> _Collection:
+        """Check if the collection is set and return it."""
+        if cls.collection is None:
+            raise ValueError(f"You must set a collection for {cls.__name__}.")
+        return cls.collection
+
+    @classmethod
+    def parse_from_db(
+        cls,
+        db_document: DocumentType,
+    ) -> Self:
+        """Parse the document from the database."""
+        return cls.model_validate(db_document)
+
     def create(
         self,
     ) -> Self:
@@ -70,27 +96,41 @@ class Document(BaseModel):
         if self.id is not None:
             raise ValueError(f"{self.__class__.__name__} has already an id={self.id}.")
         self.created_at = utcnow()
-        result = self.collection.insert_one(
-            self.to_document_type(exclude={COLLECTION}),
+        result = self.get_collection().insert_one(
+            self.to_document_type(),
         )
         self.id = result.inserted_id
         return self
 
+    @classmethod
     def read(
-        self,
+        cls,
         id: bson.ObjectId,  # noqa: A002
-        strict: bool = True,
-    ) -> Self:
+    ) -> "MongoDocument":
         """
-        Read the document to the specified collection.
+        Read the document from the specified collection.
 
-        collection : Collection[DocumentType]
-            The MongoDB collection to update the document in.
+        Parameters
+        ----------
+        id : bson.ObjectId
+            The ID of the document to read.
+        strict : bool, optional
+            Whether to perform strict validation on the document, by default True.
+
+        Returns
+        -------
+        Self
+            The document parsed with data validation.
+
+        Raises
+        ------
+        DocumentNotFoundError
+            If the document with the specified ID is not found.
         """
-        document_found = self.collection.find_one({ID: id})
+        document_found = cls.get_collection().find_one({ID: id})
         if document_found is None:
             raise DocumentNotFoundError(f"Document with id={id} not found.")
-        return self.model_validate({**document_found, COLLECTION: self.collection}, strict=strict)
+        return cast(MongoDocument, cls.parse_from_db(document_found))
 
     def update(
         self,
@@ -107,7 +147,7 @@ class Document(BaseModel):
         """
         # validate the merged model before updating
         self.model_validate({**patch, **self.to_document_type()}, strict=strict)
-        return self.collection.update_one(
+        return self.get_collection().update_one(
             filter={
                 # if the patch has an ID use that
                 # otherwise use the document's ID
@@ -127,7 +167,21 @@ class Document(BaseModel):
             collection: The MongoDB collection to delete the document from.
         """
         self.deleted_at = utcnow()
-        return self.collection.delete_one({ID: id})
+        return self.get_collection().delete_one({ID: id})
+
+    @classmethod
+    def find_all(cls) -> list[Self]:
+        """Find all documents in the collection."""
+        return [cls.parse_from_db(doc) for doc in cls.get_collection().find({})]
 
 
-Documents = Iterable[Document]
+class MongoDocument(Document):
+    """A class representing a document saved in MongoDB with required _id and created_at."""
+
+    id: bson.ObjectId = Field(  # noqa: A003
+        alias=ID,
+        description="The document unique identifier in MongoDB.",
+    )
+    created_at: datetime = Field(
+        description="The datetime when the document was created in MongoDB.",
+    )

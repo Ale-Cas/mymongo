@@ -25,7 +25,8 @@ def collection(mockdb: Database) -> Collection:
 @pytest.fixture()
 def document(collection: Collection) -> Document:
     """Return a Document instance."""
-    return Document(collection=collection)
+    Document.set_collection(collection=collection)
+    return Document()
 
 
 @pytest.fixture()
