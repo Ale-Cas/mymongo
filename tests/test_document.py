@@ -33,7 +33,7 @@ def test_create_value_error(created_document: Document) -> None:
     assert created_document.id is not None
     with pytest.raises(
         ValueError,
-        match=f"{created_document.__class__.__name__} has already an id={created_document.id}.",
+        match=f"Document has already an id={created_document.id}.",
     ):
         created_document.create()
 
