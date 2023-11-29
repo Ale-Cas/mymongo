@@ -39,6 +39,7 @@ def test_create_value_error(created_document: Document) -> None:
 
 def test_read(created_document: Document) -> None:
     """Test the read method of the Document class."""
+    assert created_document.id
     result = Document.read(created_document.id)
     assert result.id == created_document.id
     assert isinstance(result, Document)
@@ -64,6 +65,7 @@ def test_update(subdocument: TestSubDocument) -> None:
 
 def test_delete(created_document: Document) -> None:
     """Test the delete method of the Document class."""
+    assert created_document.id
     result = created_document.delete(created_document.id)
     assert isinstance(result, DeleteResult)
     assert result.deleted_count == 1
@@ -72,6 +74,7 @@ def test_delete(created_document: Document) -> None:
 
 def test_find_all(created_document: Document) -> None:
     """Test the find_all method of the Document class."""
+    assert created_document.id
     results = Document.find_all()
     assert isinstance(results, list)
     assert len(results) == 1
@@ -88,6 +91,7 @@ def test_find(created_document: Document) -> None:
 
 def test_find_by_id(created_document: Document) -> None:
     """Test the find method of the Document class."""
+    assert created_document.id
     results = Document.find({ID: created_document.id})
     assert isinstance(results, list)
     assert len(results) == 1

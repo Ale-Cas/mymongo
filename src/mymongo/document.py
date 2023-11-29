@@ -2,13 +2,14 @@
 from collections.abc import Mapping
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, ClassVar, TypeVar, cast
+from typing import Any, ClassVar
 
 import bson
 from mongomock.collection import Collection as MockCollection
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo.collection import Collection
 from pymongo.results import DeleteResult, UpdateResult
+from typing_extensions import Self
 
 from mymongo.operators import Operator
 from mymongo.utils import utcnow
@@ -18,8 +19,6 @@ DocumentType = Mapping[str, Any]
 
 ID = "_id"
 _Collection = Collection[DocumentType] | MockCollection
-
-_MongoDocument = TypeVar("_MongoDocument", bound="MongoDocument")
 
 
 class DocumentNotFoundError(Exception):
@@ -81,13 +80,13 @@ class Document(BaseModel):
     def parse_from_db(
         cls,
         db_document: DocumentType,
-    ) -> _MongoDocument:  # type: ignore[type-var]
+    ) -> Self:
         """Parse the document from the database."""
-        return cast(_MongoDocument, cls.model_validate(db_document))
+        return cls.model_validate(db_document)
 
     def create(
         self,
-    ) -> _MongoDocument:  # type: ignore[type-var]
+    ) -> Self:
         """
         Create the document to the specified collection.
 
@@ -101,13 +100,13 @@ class Document(BaseModel):
             self.to_document_type(),
         )
         self.id = result.inserted_id
-        return cast(_MongoDocument, self)
+        return self
 
     @classmethod
     def read(
         cls,
         id: bson.ObjectId,  # noqa: A002
-    ) -> _MongoDocument:  # type: ignore[type-var]
+    ) -> Self:
         """
         Read the document from the specified collection.
 
@@ -171,7 +170,7 @@ class Document(BaseModel):
         return self.get_collection().delete_one({ID: id})
 
     @classmethod
-    def find_all(cls) -> list[_MongoDocument]:
+    def find_all(cls) -> list[Self]:
         """Find all documents in the collection."""
         return cls.find({})
 
@@ -182,7 +181,7 @@ class Document(BaseModel):
         skip: int = 0,
         limit: int = 0,
         query_validation: bool = True,
-    ) -> list[_MongoDocument]:
+    ) -> list[Self]:
         """
         Find all documents in the collection that match the filter.
 
@@ -216,15 +215,3 @@ class Document(BaseModel):
                 limit=limit,
             )
         ]
-
-
-class MongoDocument(Document):
-    """A class representing a document saved in MongoDB with required _id and created_at."""
-
-    id: bson.ObjectId = Field(  # noqa: A003
-        alias=ID,
-        description="The document unique identifier in MongoDB.",
-    )
-    created_at: datetime = Field(
-        description="The datetime when the document was created in MongoDB.",
-    )
