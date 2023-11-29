@@ -2,14 +2,13 @@
 from collections.abc import Mapping
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, TypeVar, cast
 
 import bson
 from mongomock.collection import Collection as MockCollection
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo.collection import Collection
 from pymongo.results import DeleteResult, UpdateResult
-from typing_extensions import Self
 
 from mymongo.operators import Operator
 from mymongo.utils import utcnow
@@ -19,6 +18,8 @@ DocumentType = Mapping[str, Any]
 
 ID = "_id"
 _Collection = Collection[DocumentType] | MockCollection
+
+_MongoDocument = TypeVar("_MongoDocument", bound="MongoDocument")
 
 
 class DocumentNotFoundError(Exception):
@@ -80,13 +81,13 @@ class Document(BaseModel):
     def parse_from_db(
         cls,
         db_document: DocumentType,
-    ) -> Self:
+    ) -> _MongoDocument:  # type: ignore[type-var]
         """Parse the document from the database."""
-        return cls.model_validate(db_document)
+        return cast(_MongoDocument, cls.model_validate(db_document))
 
     def create(
         self,
-    ) -> Self:
+    ) -> _MongoDocument:  # type: ignore[type-var]
         """
         Create the document to the specified collection.
 
@@ -100,13 +101,13 @@ class Document(BaseModel):
             self.to_document_type(),
         )
         self.id = result.inserted_id
-        return self
+        return cast(_MongoDocument, self)
 
     @classmethod
     def read(
         cls,
         id: bson.ObjectId,  # noqa: A002
-    ) -> "MongoDocument":
+    ) -> _MongoDocument:  # type: ignore[type-var]
         """
         Read the document from the specified collection.
 
@@ -130,7 +131,7 @@ class Document(BaseModel):
         document_found = cls.get_collection().find_one({ID: id})
         if document_found is None:
             raise DocumentNotFoundError(f"Document with id={id} not found.")
-        return cast(MongoDocument, cls.parse_from_db(document_found))
+        return cls.parse_from_db(document_found)
 
     def update(
         self,
@@ -170,9 +171,51 @@ class Document(BaseModel):
         return self.get_collection().delete_one({ID: id})
 
     @classmethod
-    def find_all(cls) -> list[Self]:
+    def find_all(cls) -> list[_MongoDocument]:
         """Find all documents in the collection."""
-        return [cls.parse_from_db(doc) for doc in cls.get_collection().find({})]
+        return cls.find({})
+
+    @classmethod
+    def find(
+        cls,
+        filter: DocumentType,  # noqa: A002
+        skip: int = 0,
+        limit: int = 0,
+        query_validation: bool = True,
+    ) -> list[_MongoDocument]:
+        """
+        Find all documents in the collection that match the filter.
+
+        Parameters
+        ----------
+        filter : DocumentType
+            The filter to apply to the collection.
+        skip : int, optional
+            The number of documents to skip, by default 0.
+        limit : int, optional
+            The maximum number of documents to return, by default 0.
+
+        Returns
+        -------
+        list[Self]
+            The documents found in the collection that match the filter.
+        """
+        if ID in filter:
+            return [cls.read(filter[ID])]
+        if query_validation:
+            for key in filter:
+                if key not in cls.model_fields:
+                    raise ValueError(
+                        f"Filter key {key} is not in model fields {cls.model_fields}.",
+                    )
+        return [
+            cls.parse_from_db(doc)
+            for doc in cls.get_collection().find(
+                filter=filter,
+                skip=skip,
+                limit=limit,
+            )
+        ]
 
 
 class MongoDocument(Document):

@@ -3,7 +3,7 @@ import bson
 import pytest
 from pymongo.results import DeleteResult, UpdateResult
 
-from mymongo.document import Document, DocumentNotFoundError
+from mymongo.document import ID, Document, DocumentNotFoundError
 from tests.conftest import TestSubDocument
 
 
@@ -30,7 +30,6 @@ def test_create(document: Document) -> None:
 
 def test_create_value_error(created_document: Document) -> None:
     """Test the create method of the Document class."""
-    assert created_document.id is not None
     with pytest.raises(
         ValueError,
         match=f"Document has already an id={created_document.id}.",
@@ -40,7 +39,6 @@ def test_create_value_error(created_document: Document) -> None:
 
 def test_read(created_document: Document) -> None:
     """Test the read method of the Document class."""
-    assert created_document.id
     result = Document.read(created_document.id)
     assert result.id == created_document.id
     assert isinstance(result, Document)
@@ -66,7 +64,6 @@ def test_update(subdocument: TestSubDocument) -> None:
 
 def test_delete(created_document: Document) -> None:
     """Test the delete method of the Document class."""
-    assert created_document.id
     result = created_document.delete(created_document.id)
     assert isinstance(result, DeleteResult)
     assert result.deleted_count == 1
@@ -80,5 +77,33 @@ def test_find_all(created_document: Document) -> None:
     assert len(results) == 1
     result = results[0]
     assert isinstance(result, Document)
-    assert created_document.id
     assert result.id == created_document.id
+
+
+def test_find(created_document: Document) -> None:
+    """Test the find method of the Document class."""
+    results = Document.find({"created_at": created_document.created_at})
+    assert isinstance(results, list)
+
+
+def test_find_by_id(created_document: Document) -> None:
+    """Test the find method of the Document class."""
+    results = Document.find({ID: created_document.id})
+    assert isinstance(results, list)
+    assert len(results) == 1
+    result = results[0]
+    assert isinstance(result, Document)
+    assert result.id == created_document.id
+
+
+def test_find_value_error() -> None:
+    """Test the find method of the Document class."""
+    with pytest.raises(ValueError, match="Filter key random_invalid_field is not in model fields "):
+        Document.find({"random_invalid_field": "test"})
+
+
+def test_find_without_validation() -> None:
+    """Test the find method of the Document class."""
+    result = Document.find({"random_invalid_field": "test"}, query_validation=False)
+    assert isinstance(result, list)
+    assert not result
