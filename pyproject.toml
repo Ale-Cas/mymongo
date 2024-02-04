@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]  # https://python-poetry.org/docs/pyproject/
 name = "mymongo"
-version = "0.0.0"
+version = "0.1.0"
 description = "A Python package for effortless object-document mapping using pymongo and pydantic to interface with MongoDB."
 authors = ["Alessio Castrica <castricaalessio@gmail.com>"]
 readme = "README.md"
@@ -22,6 +22,7 @@ pydantic = ">=1.10.7"
 python = ">=3.10,<4.0"
 pymongo = "^4.6.0"
 ulid-py = "^1.1.0"
+querytyper = "^0.1.0"
 
 [tool.poetry.group.test.dependencies]  # https://python-poetry.org/docs/master/managing-dependencies/
 commitizen = ">=3.2.1"
