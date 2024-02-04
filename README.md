@@ -8,6 +8,53 @@ A Python package for effortless object-document mapping using pymongo and pydant
 
 To add and install this package as a dependency of your project, run `poetry add mymongo`.
 
+### Example
+
+```python
+from typing import Any
+
+from mymongo import Document, Store
+from pydantic import BaseModel, EmailStr
+from pymongo import MongoClient
+from querytyper import MongoFilterMeta, MongoQuery
+
+class User(BaseModel):
+        """User model."""
+
+        name: str
+        age: int
+        email: EmailStr
+
+class UserInDb(User, Document):
+    """User database model."""
+
+class UserFilter(UserInDb, metaclass=MongoFilterMeta):
+    """User query filter."""
+
+client: MongoClient[dict[str, Any]] = MongoClient()
+collection = client.get_database(name="db_name").get_collection(name="collection_name")
+store = Store[User, UserInDb](collection)
+first_id = store.create(User(name="John", age=11, email="john@example.com")).id
+second_id = store.create(User(name="John", age=13, email="j@example.com")).id
+store.create(User(name="Al", age=12, email="al@example.com"))
+query = MongoQuery((UserFilter.name == "John") & (UserFilter.age >= 10))
+store.delete(first_id)
+found = store.find(query)
+found[0]
+```
+
+```python
+UserInDb(
+    id=ObjectId('65bfa898110076608a191c36'), 
+    created_at=datetime.datetime(2024, 2, 4, 15, 9, 12, 47000), 
+    updated_at=datetime.datetime(2024, 2, 4, 15, 9, 12, 47000), 
+    deleted_at=None, 
+    name='John', 
+    age=13, 
+    email='j@example.com'
+)
+```
+
 ## Contributing
 
 <details>
